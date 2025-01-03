@@ -7,6 +7,7 @@ namespace lingling::discord
 {
     namespace
     {
+        std::vector<command_create_t>command_creation_listeners;
         // Permissions to be able to view the channel
         constexpr dpp::permission VIEW_CHANNEL = dpp::permission()
                                                  .add(dpp::p_view_channel)
@@ -157,7 +158,7 @@ namespace lingling::discord
 
                     if (!cb.is_error() && cb.get<dpp::channel>().name == id) {
                         event.edit_original_response(
-                            std::format("Setup failed - `{}` already exists!", id));
+                            { std::format("Setup failed - `{}` already exists!", id) });
                         *stop = true;
                     }
 
@@ -193,22 +194,41 @@ namespace lingling::discord
         dpp::slashcommand cmd("setup", "Setup the bot channels in your discord.", app_id);
 
         cmd.add_option(dpp::command_option(
-               dpp::co_string, "identifier",
-               "Unique identifier for the category in case there are multiple, for example the server number."
-           ))
-           .add_option(dpp::command_option(
-               dpp::co_role, "access-role",
-               "The role members need to have to be able to see the category & channels (everyone if not specified)."
-           ))
-           .add_option(dpp::command_option(
-               dpp::co_role, "command-role",
-               "The role members need to have to be able to use bot commands (same as access-role if not specified)."
-           ))
-           .add_option(dpp::command_option(
-               dpp::co_role, "tribelog-role",
-               "The role members need to have to be able to see the tribelog (same as access-role if not specified)."
-           ));
+            dpp::co_string, "identifier",
+            "Unique identifier for the category in case there are multiple, for example the server number."
+        ))
+            .add_option(dpp::command_option(
+                dpp::co_role, "access-role",
+                "The role members need to have to be able to see the category & channels (everyone if not specified)."
+            ))
+            .add_option(dpp::command_option(
+                dpp::co_role, "command-role",
+                "The role members need to have to be able to use bot commands (same as access-role if not specified)."
+            ));
+           
+        for (const auto& fn : command_creation_listeners) {
+            fn(cmd); 
+        }
 
-        return {cmd, handle_setup_command};
+            return { cmd, handle_setup_command };
+        }
+
+    discord::command_callback_t add_setup_tribelog_option(dpp::slashcommand& cmd)
+    {
+        dpp::command_option tribe_role(dpp::co_role, "tribelog-role",
+            "The role members need to have to be able to see the tribelog(same as accessrole if not specified)" // over 100 chars length had issues
+        );
+        cmd.add_option(tribe_role);
+        
+        return handle_setup_command;
+    }
+
+    void add_setup_command_create_listener(command_create_t callback)
+    {
+        command_creation_listeners.push_back(std::move(callback));
+    }
+
+    void init_tribelog_module() {
+        add_setup_command_create_listener(add_setup_tribelog_option);
     }
 }
